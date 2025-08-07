@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # WAF Application
+  waf:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - WAF_MODE=production
+      - WAF_HOST=0.0.0.0
+      - WAF_PORT=5000
+      - WAF_REDIS_URL=redis://redis:6379
+      - WAF_LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./config:/app/config
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - waf-network
+
+  # Redis for rate limiting
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - waf-network
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - waf
+    restart: unless-stopped
+    networks:
+      - waf-network
+
+volumes:
+  redis-data:
+
+networks:
+  waf-network:
+    driver: bridge 
